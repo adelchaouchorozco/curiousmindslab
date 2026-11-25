@@ -1,0 +1,1670 @@
+/* ==========================================================================
+   Curious Minds Lab
+
+   index.html + this file. No build step, no JavaScript, no dependencies.
+   README.md is the original design spec; design-system.md records where this
+   deviates from it and why.
+
+   Contents
+     1  Typeface
+     2  Tokens            <- every size, colour and space value lives here
+     3  Base
+     4  Utilities
+     5  Page container
+     6  Masthead
+     7  Cover
+     8  The spine         <- one shape for every section below the cover
+     9  Research
+    10  How we work
+    11  People
+    12  Publications
+    13  News
+    14  Join + Participate
+    15  Contact + footer
+    16  Tablet   (<= 1248px / <= 900px)
+   16b  Cover stacks      (<= 650px)
+    17  Phone    (<= 600px)
+    18  Narrow   (<= 359px)
+    19  Pending state     <- inert links; must stay last in the file
+    20  Print
+
+   No rule below section 2 contains a raw px font-size, and no grid track that
+   holds text is stated in px — a px track against rem type does not grow with
+   the reader's font-size setting, and the text shatters mid-word inside it.
+   Type comes from the
+   scale or it does not appear on the page.
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. Typeface — self-hosted Newsreader
+   Variable on two axes: wght and opsz. The roman face carries 300-700 (300 and
+   400 for the design, 600 for the hover state); the italic stays 300-400
+   because nothing italic ever bolds. opsz is 6-72 and the design depends on it
+   — large sizes want low weight and negative tracking, small sizes want
+   positive tracking.
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Newsreader';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('../fonts/nr-roman.woff2') format('woff2-variations'),
+       url('../fonts/nr-roman.woff2') format('woff2');
+}
+
+/* The italic is STATIC, not variable. It serves exactly one thing on this page
+   — `.pub__ref em`, at 400, at --t-lg — and the real publication list will not
+   change that, since journal titles sit at the same rank. Pinning wght 400 and
+   opsz 24 took it from 95,720 to 22,652 bytes: 73 KB, a quarter of the page,
+   off the first request wave where it was competing with the preloaded roman
+   the LCP text depends on. The variable original is kept at
+   _design/source/nr-italic-variable.woff2 — re-instance from there if the
+   italic ever needs a second size or weight. */
+@font-face {
+  font-family: 'Newsreader';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/nr-italic.woff2') format('woff2');
+}
+
+/* Metric-matched fallback. size-adjust is set for ADVANCE WIDTH, not for
+   x-height: what actually costs layout during a swap is a change in LINE
+   COUNT, and line count follows advance width. The first version optimised
+   x-height instead (91.2%), which left Georgia 8.8% narrow — enough that the
+   masthead nav set in one row on the fallback and two on Newsreader, and the
+   whole viewport jumped 37px at 768px on first paint.
+
+   Vertical metrics are then overridden to Newsreader's exact 73.5 / 26.5 / 0,
+   pre-scaled by 1/0.94 because the overrides apply to the size-adjusted em:
+   78.2 = 73.5 / 0.94, 28.2 = 26.5 / 0.94.
+
+   The roman face is preloaded, so this only shows on a cold connection. It is
+   corrected anyway because the swap is the one moment the page moves.
+
+   94% is not a derived figure, it is a measured minimum. Document-height
+   delta between the two faces, swept across ten viewport widths:
+
+     size-adjust   320   375   414   600   768   900  1024  1171  1440   worst
+     91.2%         103     9    40    21    37    28     0     0    27     103
+     94%            44    37    55     0    37     0    36     0     0      55
+     95%            13    95    55     0     0     0    36     0     0      95
+
+   No value is zero everywhere — two typefaces cannot share every advance
+   width, so some element somewhere always changes line count. 94% has the
+   best worst case, and 375px (the most common phone width) is where 95%
+   fails. The earlier note here claimed 0.000 CLS; that was measured on three
+   widths, none of which happened to wrap differently. */
+@font-face {
+  font-family: 'Newsreader Fallback';
+  src: local('Georgia'), local('Times New Roman'), local('Times');
+  size-adjust: 94%;
+  ascent-override: 78.2%;
+  descent-override: 28.2%;
+  line-gap-override: 0%;
+}
+
+
+/* ==========================================================================
+   2. Tokens
+   ========================================================================== */
+
+:root {
+  /* The design is committed to paper white. Declaring it keeps the UA
+     scrollbar and form widgets from rendering dark against it. */
+  color-scheme: light;
+
+  /* ---- Colour: the whole palette, five values --------------------------
+     The handoff specified five and no accent. The accent was added on the
+     client's instruction (design-system.md, deviation 12); #ccc left the
+     palette in the same pass, when the underlines it drew were removed. */
+  --ink:        #000000;   /* text, and every rule and border */
+  --paper:      #ffffff;   /* page background */
+  --ink-soft:   #333333;   /* secondary body copy */
+  --ink-muted:  #666666;   /* labels, dates, footer, pending links */
+  --accent:     #C81E48;   /* Crimson. Hover, ::selection, and exactly three
+                              at-rest uses: the closing email and the two CTA
+                              boxes, which are the page's only actions and the
+                              only things a reader is asked to do. Everything
+                              else stays black until pointed at.
+                              5.62:1 on paper (it must clear
+                              4.5:1, because the hover colour lands on 15px
+                              links) and 3.74:1 against ink, which is the
+                              number that matters for whether it reads as a
+                              colour rather than as near-black. Chosen over
+                              #97176E, which was quieter on both counts that
+                              matter here: it sat at 2.66:1 against ink. */
+
+  /* ---- Type: family --------------------------------------------------- */
+  --serif: 'Newsreader', 'Newsreader Fallback', Georgia, serif;
+  --w-display: 300;
+  --w-text:    400;
+  --w-bold:    600;   /* hover, and lab authors in a reference — the only two
+                         places weight is used to emphasise
+                         rather than to set display type. */
+
+  /* ---- Type: fixed scale -----------------------------------------------
+     A 1.2 ratio anchored at 20px, expressed in rem so a reader's own browser
+     font-size setting scales the whole page — the most common low-vision
+     accommodation, and inert on a px-only page. Every fixed size is one of
+     these; the phone block redefines them once and the page follows. Media
+     queries that describe the DEVICE stay in px; the one that fires because
+     type stopped fitting is in rem (see section 16). */
+  /* HOMOGENISED, Sep 2026. The page had eleven sizes at 1440 (15, 17, 20,
+     24, 29, 42, 48, 52, 62, 66 and the cover); it now has six: four text
+     steps, one headline size, and the cover. Every piece of text takes one
+     of them by ROLE, so like things match wherever they sit. */
+  --t-section: 1.5rem;    /* section labels in the spine                 24px */
+  --t-label:   0.9375rem; /* field labels, roles, dates, metadata        15px */
+  --t-body:    1.25rem;   /* body: theme and value text, every intro and
+                             CTA paragraph, member notes, contact, links 20px */
+  --t-lg:      1.5rem;    /* reading text: cover lead, PI bio,
+                             publication references, news headlines      24px */
+  --t-xl:      1.8125rem; /* titles: member names, How-we-work titles    29px */
+
+  /* ---- Type: display clamps --------------------------------------------
+     Fluid, no breakpoints. The hero, name and theme clamps are the handoff's. */
+  --d-hero:  min(20.5cqi, 10rem);   /* cqi: see .hero__top. No rem floor —
+                                       a rem floor scales when cqi does not,
+                                       and at a large root it beat what fit
+                                       the column and broke the H1 mid-word. */
+  /* ONE headline size for every headline under the cover: research theme
+     titles and their numerals, the research intro, the PI's name, the Join
+     and Take part headlines, the closing email. 48px at 1440, the same as
+     the section numerals (--mark-size). Only on phones does the email drop
+     below it (section 17), so the address still fits beside its hover
+     weight. */
+  --d-head:  clamp(2rem, 3.6vw, 3rem);   /* floor 32px: it must stay above
+                                          --t-xl (29px) at tablet widths, or
+                                          a member name outranks a headline */
+  --d-email: var(--d-head);
+
+  /* ---- Type: tracking ---------------------------------------------------
+     Labels share one size per rank; importance within a rank is carried by
+     tracking, which is the rule the design states. Widest = most important. */
+  --ls-section:  0.24em;  /* section labels */
+  --ls-field:    0.22em;  /* field labels, photo slots */
+  --ls-wordmark: 0.2em;   /* the wordmark, a shade wider than the nav */
+  --ls-footer:   0.18em;  /* footer bar */
+  --ls-nav:      0.16em;  /* masthead nav */
+  --ls-link:     0.14em;  /* metadata links, roles */
+
+  /* ---- Type: leading ---------------------------------------------------- */
+  --lh-title: 1.2;
+  --lh-body:  1.6;
+  --lh-label: 1.4;
+
+  /* ---- Space ------------------------------------------------------------ */
+  --page-x: clamp(24px, 4vw, 56px);       /* horizontal padding, everywhere.
+                                             Used by the cover, the footer AND
+                                             both sides of the spine, so every
+                                             margin on the page lines up. */
+  --block-y: clamp(48px, 5vw, 4.5rem);      /* air inside a section, top and
+                                             bottom — the same value on both
+                                             sides of the spine, so a label and
+                                             its first line start level. */
+  --rule: 1px solid var(--ink);
+  /* The small rules — between rows, beside the labels, around the empty
+     portrait frames — step back to the palette's grey so the section bars
+     carry the structure and the hairlines only separate. The frame of the
+     page stays black: the masthead rule at the very top and the rule that
+     closes the spine at the very bottom (and the 2px rule that opens the
+     publication list, which is meant to outrank its rows). */
+  --rule-soft: 1px solid var(--ink-muted);
+
+  /* The section boundary is a BAND of ink, not a rule. The spine gives its two
+     rules different jobs — a horizontal one means "a new section starts", a
+     vertical one means "the label ends" — and at the same 1px the more
+     important of the two did not read first. Thickening it was tried at 2px and
+     3px and neither settled: 2px is barely a step, 3px reads as a slab. A band
+     stops pretending to be a rule and becomes what it is. */
+  /* The section boundary, per alternative 1A of the publications handoff: the
+     bar is NOTCHED rather than punched. It begins where the numeral ends, so
+     the two share a horizontal band and can never overlap — the defect 1A
+     exists to fix, and one a paper hole punched through a full-width band only
+     ever concealed. */
+  --band-h:    0.875rem;   /* 14px — the handoff's bar */
+  --mark-size: 3rem;       /* 48px — the handoff's numeral */
+  /* Air between the numeral and the bar, on BOTH sides now that the bar also
+     runs in from the left. Half the page margin, capped at 20px: --page-x falls
+     to 24px on phones, and a fixed 20px gap would leave a 4px stub of bar left
+     of the number. Written as one clamp() — half of clamp(24px, 4vw, 56px) is
+     clamp(12px, 2vw, 28px) — rather than min() over a divided clamp(), which is
+     the kind of nesting engines disagree on. */
+  --mark-gap:  clamp(12px, 2vw, 1.25rem);
+  --bar-h: 4.6875rem;                     /* the pinned bar: 75px at a default
+                                             root, in rem so it tracks the type
+                                             it contains. scroll-padding-top
+                                             and the sticky section labels both
+                                             derive from it. */
+}
+
+
+/* ==========================================================================
+   3. Base
+   ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--bar-h) + 28px);
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: var(--t-body);
+  font-weight: var(--w-text);
+  line-height: var(--lh-body);
+  font-synthesis-weight: none;
+  overflow-wrap: break-word;   /* inherited half of the guard; see section 4 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, p, dl, dd, figure { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+img { display: block; max-width: 100%; height: auto; }
+
+/* The page is entirely black at rest — no colour, no underlines. The accent is
+   ACTIVATED: it exists only under the cursor and in a selection, never sitting
+   still on the page.
+
+   The cost is stated plainly because it is real: with neither colour nor a rule
+   at rest, a link is typographically identical to the text beside it. That is
+   survivable here only because every link is positionally obvious — a nav item,
+   a list row, a CTA line, a display line — and none sits inline inside a
+   paragraph. The one place it bites is the Contact block, where three links sit
+   beside a postal address. Keyboard users are unaffected: :focus-visible is a
+   black ring. */
+a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* Hover changes the letters — colour AND weight — rather than painting a block
+   behind them. There is no underline anywhere, at rest or on hover: the client
+   rejected both the filled block and the rule under the word.
+
+   Navigation is black at rest and takes both cues on hover. The three action
+   elements are accented at rest already, so for them hover adds weight alone —
+   which is also what keeps 1.4.1 satisfied there: their affordance is never
+   colour by itself, it is colour plus a box plus display scale. */
+a:hover {
+  color: var(--accent);
+  font-weight: var(--w-bold);
+}
+
+::selection { background: var(--accent); color: var(--paper); }
+
+/* Focus is not specified in the design; it is added because the page cannot
+   ship without it. Square, black, no new colour. */
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* <main> takes focus from the skip link so the next Tab continues into the
+   content, but it is a destination rather than a control — outlining a
+   6,000px-tall element draws a rail down the whole page. */
+main[tabindex="-1"]:focus { outline: none; }
+
+/* The design specifies no motion of any kind. Smooth scrolling on anchors is
+   the single exception, and it is withdrawn on request. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;   /* must outrank the pinned bar (10) — WCAG 2.4.11 */
+  background: var(--ink);
+  color: var(--paper);
+  padding: 12px 20px;
+  font-size: var(--t-label);
+  letter-spacing: var(--ls-nav);
+  text-transform: uppercase;
+}
+
+.skip-link:focus { left: 4px; text-decoration: none; }
+
+/* The skip link is the one link on an INK background, so the accent hover
+   would put the accent on black: 3.74:1, under the 4.5:1 its 15px demands.
+   It keeps paper at every state. (This was worse before the accent changed —
+   #97176E against ink is 2.66:1 — and went unnoticed because the link is only
+   visible while focused.) */
+.skip-link:hover { color: var(--paper); }
+
+
+/* ==========================================================================
+   4. Utilities
+   ========================================================================== */
+
+/* Two label ranks. A section label names a whole block; a field label names one
+   value inside one. They were the same size, which flattened the two ranks into
+   one and is part of why sections did not read as separate. */
+.label {
+  font-size: var(--t-section);
+  font-weight: var(--w-text);
+  line-height: var(--lh-label);
+  letter-spacing: var(--ls-section);
+  text-transform: uppercase;
+}
+
+.label--field,
+.label--link,
+.label--role { font-size: var(--t-label); }
+
+.label--field {
+  letter-spacing: var(--ls-field);
+  color: var(--ink-muted);
+}
+
+.label--link { letter-spacing: var(--ls-link); }
+
+.label--role {
+  letter-spacing: var(--ls-link);
+  color: var(--ink-muted);
+}
+
+/* ---- The overflow guard, in two parts ---------------------------------
+   The distinction between these two values is the whole finding, and it cost
+   several passes to get right.
+
+   `overflow-wrap: break-word` is set on the body and INHERITED, so it reaches
+   every string on the page — including ones no enumeration would think to
+   list: the wordmark, the nav items, the footer. It stops a long word painting
+   outside its box. It does NOT reduce the element's min-content size.
+
+   `overflow-wrap: anywhere` DOES reduce min-content, which is the only thing
+   that stops a grid track being pushed past its container and the document
+   into horizontal scroll. So it goes on the strings that sit in constrained
+   tracks, below. Paired with minmax(0, …) on every fr track in the file.
+
+   Neither carries `hyphens: auto`. Hyphenation is a rag aid for justified body
+   text; on display sizes and letter-spaced uppercase it printed breaks like
+   "posit-ion" in the CTA headline at every desktop width. */
+.hero__title,
+.pi__name,
+.theme__title,
+.label,
+.value__title,
+.member__name,
+.cta__head,
+.news__head,
+.pub__ref,
+.contact__email,
+.member__note,
+.value__text,
+.footer p {
+  overflow-wrap: anywhere;
+}
+
+/* .rule-link no longer draws a rule — the class survives only as the hook for
+   the tap-target expansion below. */
+.rule-link { position: relative; }
+
+/* Reserving the bold width. A weight change on hover widens the text, which in
+   a flex row pushes every item after it — measured 4px in the nav, 3px in the
+   PI links. The ::before is a zero-height block carrying the same string at the
+   hover weight, so the element is always as wide as its bold state and the
+   hover costs no reflow at all. ::before, not ::after: .rule-link::after is
+   already the tap-target expansion. */
+.masthead__wordmark::before,
+.footer__top::before,
+.masthead__nav a::before,
+.pi__links a::before,
+.member__links a::before,
+.cta__link::before,
+.contact__email::before {
+  content: attr(data-t);
+  display: block;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  font-weight: var(--w-bold);
+  pointer-events: none;
+}
+
+/* Expands the tap target past 24px without moving a visible pixel. Vertical
+   only: these links are all wider than 24px already, and a horizontal bleed
+   pushes the document 4px wide when one sits against the right margin. */
+.rule-link::after {
+  content: '';
+  position: absolute;
+  inset: -7px 0;
+}
+
+/* Marks a string the lab still owes. No visual treatment by default — the
+   brackets already read as empty. Uncomment to highlight every outstanding
+   placeholder on the page at once. */
+/* .todo { background: #000; color: #fff; } */
+
+
+/* ==========================================================================
+   5. Page container
+   ========================================================================== */
+
+/* No side rules. The page used to be boxed by a 1px rule on each edge; the
+   notched section bars now carry the structure, and the box only framed the
+   window's own edge a second time. */
+.page {
+  counter-reset: section;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+/* The page's main horizontal lines — the masthead rule, every section bar, and
+   the rule that closes the spine — run to the window's edges. Content stays
+   capped at 1440px; only the lines escape it, so below 1440 none of this
+   changes anything.
+
+   --bleed is how far the window extends past the page on each side. 100vw
+   includes a classic scrollbar, so the lines can overshoot by half its width;
+   the viewport clips that rather than scrolling sideways. */
+:root { --bleed: max(0px, 50vw - 720px); }
+html  { overflow-x: clip; }
+
+/* A border-image outset paints the bottom border out to the window edge
+   without widening the box. */
+.topbar,
+.block--last {
+  border-image: linear-gradient(var(--ink), var(--ink)) 0 0 1 0 / 0 0 1px 0 / 0 var(--bleed);
+}
+
+
+/* ==========================================================================
+   6. Masthead
+
+   Sticky. The bar keeps its own paper background so content scrolls under it
+   rather than through it, and the 1px rule doubles as the edge it scrolls
+   against — no shadow, which the palette does not allow in any case.
+
+   `.topbar` holds the brand and the nav on one row. Below the split point it
+   becomes `display: contents`, which dissolves the wrapper so the brand and
+   the nav become independent children of the page: the brand pins on its own
+   and the nav scrolls away beneath it. See section 16 for why.
+   ========================================================================== */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 2rem;
+  padding: 0.875rem var(--page-x);
+  background: var(--paper);
+  border-bottom: var(--rule);
+  font-size: var(--t-label);
+  line-height: var(--lh-label);
+  letter-spacing: var(--ls-nav);
+  text-transform: uppercase;
+}
+
+/* The pinned bar's paper ground runs to the window edges, like its rule.
+   Above 1440 the section bars bleed past .page, but the bar's own background
+   stopped at 1440 — so on scroll the bars slid past the pinned masthead in
+   the side margins, beside the logo. A pseudo-element, not a spread
+   box-shadow: the page has no shadows. It is absolutely placed, so it is not a
+   flex item, and it sits under the bar's content (z-index -1 inside the bar's
+   own stacking context, which z-index: 10 creates). */
+.topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 calc(-1 * var(--bleed)) 1px;
+  z-index: -1;
+  background: var(--paper);
+}
+
+/* Mark and wordmark are one link and one optical unit: the mark is set a shade
+   taller than the wordmark's cap height and sits on the same centre line. */
+.masthead__brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.25rem 0;
+}
+
+.masthead__brand:hover { text-decoration: none; }
+
+.masthead__mark {
+  width: auto;
+  height: 2.375rem;
+  flex: none;
+}
+
+.masthead__wordmark { letter-spacing: var(--ls-wordmark); }
+
+.masthead__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.375rem;
+}
+
+/* Vertical padding in place of the design's 10px nav row-gap: a wrapped row
+   reads the same, and every link clears the 24px minimum target. */
+.masthead__nav a {
+  display: inline-block;
+  padding: 0.375rem 0;
+}
+
+
+/* ==========================================================================
+   7. Cover
+
+   Headline left, lockup right, both starting at the same top edge and ending
+   together. The headline sizes in cqi against its own column and the logo
+   track is a percentage, so the two hold a 1.00 height ratio across the whole
+   range without a media query — see deviation 14 and 18. Below 650 the cover
+   stacks; that is section 16b, and it is the cover's own breakpoint, not the
+   spine's 900.
+   ========================================================================== */
+
+.hero { padding: clamp(48px, 6vw, 5.4rem) var(--page-x) clamp(56px, 7vw, 6.3rem); }
+
+/* Headline left, lockup right, both starting at the top edge. The headline used
+   to run full width beneath this band, which left the whole left half of the
+   cover empty beside a 480px logo.
+
+   The headline sizes in `cqi` — a share of ITS OWN COLUMN, not of the viewport
+   — so it fills the column at every width without a media query and without
+   ever outrunning it. A vw clamp could not do that here: the column's width
+   depends on the logo track, not on the window. */
+/* The lead sits in the HEADLINE's column, directly under it, and the logo
+   spans both rows beside them. It used to sit below the whole band, so it
+   started under whichever of headline and logo was taller — and once the
+   headline became "We are curious about how minds work.", whose line count
+   no longer matches the logo's height, that left up to ~150px of empty space
+   between headline and lead at some widths. The second row is 1fr so any
+   extra height from a tall logo goes BELOW the lead, never above it. */
+.hero__top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 41.48%);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "head logo"
+    "lead logo";
+  column-gap: clamp(32px, 4vw, 3.6rem);
+  align-items: start;
+}
+
+.hero__headline { grid-area: head; container-type: inline-size; }
+.hero__logo { grid-area: logo; }
+.hero__lead { grid-area: lead; }
+
+/* The logo track is a PERCENTAGE, not a fixed width, and that is the whole
+   trick. Solving 4 lines x size x 0.88 (headline) against 0.9433 x width (the
+   logo's aspect) gives a 550px logo beside a 718px headline column across the
+   1326px content width — 519px and 518px tall. But 550px is the ANSWER at one
+   width, not the rule: as a fixed growth limit it was fed before the 1fr
+   headline, so at 901px grid handed the logo 520px and left the H1 241px, and
+   the two blocks ended 317px apart. Stated as the ratio it solves to (41.48%),
+   the height match holds at every width — measured 0-4px apart from 901 to
+   1440 — and the headline keeps 54% of the band instead of collapsing to 29%.
+   A vw unit could not do this either: .page caps at 1440px, so any vw figure
+   goes on growing after the container has stopped.
+
+   The type is 20.5cqi, not the 21.9 that would fill the column exactly: at
+   full fill the longest line sits ON the wrap boundary and the headline tips
+   from four lines to five, which breaks both the fill and the height match. */
+
+/* Every logo variant is cut from the TRIMMED artwork: the source PNG carries
+   13.9% transparent padding, so a right-aligned logo looked inset from the
+   margin even when its box was flush. */
+.hero__logo {
+  width: 100%;
+  max-width: 550px;
+}
+
+.hero__title {
+  font-size: var(--d-hero);
+  line-height: 0.88;
+  font-weight: var(--w-display);
+  letter-spacing: -0.038em;
+  max-width: 16ch;
+  text-wrap: pretty;
+}
+
+.hero__lead {
+  font-size: var(--t-lg);
+  line-height: 1.55;
+  max-width: 48ch;
+  margin-top: clamp(40px, 4vw, 3.6rem);
+  text-wrap: pretty;
+}
+
+
+/* ==========================================================================
+   8. The spine
+
+   Every section from Research to Contact is this shape, no exceptions:
+
+       ------------------------------  1px rule: a new section starts
+       LABEL   |   content             1px rule: the label margin ends
+
+   The vertical rule runs unbroken from Research to the footer, which is what
+   makes the page's order legible: a horizontal rule always means "new
+   section", a vertical rule always means "label ends, content begins". Before
+   this, section labels appeared in four different positions and the rules
+   encoded nothing consistent.
+
+   Do not special-case a section out of the spine.
+   ========================================================================== */
+
+/* NO INK UNDER PAPER, anywhere in the spine. The rules used to be drawn by
+   giving .block an ink background and letting it show through 1px grid gaps
+   between paper cells. That paints ink under every cell edge, and wherever an
+   edge lands between device pixels — browser zoom, a fractional scroll offset,
+   most widths at 2x — the antialiased paper edge lets a grey trace of the ink
+   through: seams along the page edges and above and below every notch. The
+   side rules on .page hid the edge seams; removing them (deviation 24) exposed
+   them. The spine's rule is now a border on the label cell, so nothing is
+   painted twice and there is nothing to leak.
+
+   The label track is 1px wider than before to hold that border, so the label's
+   content box and the body's left edge are exactly where the old gap put them. */
+.block {
+  display: grid;
+  grid-template-columns: minmax(calc(13.75rem + 1px), calc(21.25rem + 1px))
+                         minmax(0, 1fr);
+  counter-increment: section;
+  position: relative;
+}
+
+.block__label {
+  /* The spine's vertical rule stops short of both section bars — --page-x
+     below the bar above it and --page-x above the bar below — the same
+     distance the thin row rules keep from it. A rule running into a bar
+     reads as a joint in one frame; stopped short, the bars and the rules
+     read as two separate orders of line.
+
+     Drawn as a 1px background strip at the cell's right edge rather than a
+     border, because a border cannot be inset. The border stays, transparent,
+     so the cell's box is exactly what it was. */
+  border-right: 1px solid transparent;
+  background: linear-gradient(var(--ink-muted), var(--ink-muted)) no-repeat
+              right 0 top var(--page-x) / 1px calc(100% - 2 * var(--page-x));
+  background-origin: border-box;
+}
+
+/* The bar. A grid item spanning both columns. */
+.block::before {
+  content: "";
+  grid-column: 1 / -1;
+  height: var(--band-h);
+  background: var(--ink);
+  /* Two plain boxes of ink, no gradient. An earlier version drew the whole bar
+     as one four-stop gradient with window-width maths in its stop positions;
+     it measured and rendered correctly in Chromium and rendered with the gap
+     shifted off the numeral in another browser. Plain boxes and simple lengths
+     render the same everywhere.
+
+     THIS box is the bar to the right of the numeral: it starts exactly as far
+     past the numeral's ink as the left bar stops before it. Each numeral has
+     its own ink width (--mark-ink, set per section below), because one shared
+     value is necessarily the widest numeral's: every narrower one then sat
+     visibly closer to the left bar. A margin is safe now: nothing is painted
+     under the bar for it to expose (deviation 24). */
+  margin-left: calc(var(--page-x) + var(--mark-size) * var(--mark-ink, 1.0860)
+                    + var(--mark-gap));
+  margin-right: calc(-1 * var(--bleed));
+}
+
+/* ---- Per-numeral optical width ---------------------------------------------
+   Where the bar to the right of each numeral starts, in em from --page-x, so
+   the numeral reads centred between the two bars. Spaced OPTICALLY, the way
+   type designers space letters, because both geometric measures were visibly
+   wrong:
+
+   - Widest point of the glyph: "1" is widest at its foot serif, below the bar,
+     so "01" had 20px on the left and 27px of air beside the bar on the right.
+   - Distance at the bar's height only: equal to the pixel, and "01" then read
+     tight on the right. "0" curves away above and below the bar, so the left
+     side holds more air than its narrowest point; the "1" is a straight stem
+     with its foot reaching out underneath.
+
+   The measure: for every row of the numeral's full height, the white between
+   the bar's end and the ink, each row capped at 0.15em so an open counter does
+   not count as endless air. The right bar is placed where the average white on
+   the right equals the average on the left. The cap changes most results by
+   under 0.5px between 0.1em and 0.25em ("05" and "06" by 1–2px).
+
+   Measured on Newsreader 300 at the numeral's real size on an 8x canvas, ink
+   edge at 50% coverage. Real size matters — optical sizing draws the digits
+   differently at 48px and 36px — so phones have their own set in section 16b.
+
+   Keyed on :nth-of-type because the numerals come from a counter in document
+   order, which is the same order :nth-of-type counts. An eleventh section
+   falls back to 1.0860em and needs its own measured line.
+
+   "10" is wider than its neighbours in a way the others are not: its "1"
+   starts 0.06em right of --page-x (the foot serif, not a round 0), so its
+   left gap reads 3px wider and the right bar follows to match. */
+.block:nth-of-type(1) { --mark-ink: 0.9444; }
+.block:nth-of-type(2) { --mark-ink: 1.0154; }
+.block:nth-of-type(3) { --mark-ink: 1.0125; }
+.block:nth-of-type(4) { --mark-ink: 0.9877; }
+.block:nth-of-type(5) { --mark-ink: 0.9769; }
+.block:nth-of-type(6) { --mark-ink: 1.0058; }
+.block:nth-of-type(7) { --mark-ink: 0.9852; }
+.block:nth-of-type(8) { --mark-ink: 1.0453; }
+.block:nth-of-type(9) { --mark-ink: 1.0270; }
+.block:nth-of-type(10) { --mark-ink: 1.2017; }
+
+/* The bar to the LEFT of the numeral: from the window's left edge to
+   --mark-gap before the numeral's ink. Hung from the label cell, which is not
+   itself positioned, so it is placed against .block — the same box the
+   numeral is placed against, which keeps the two gaps measured from one
+   origin. */
+.block__label::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(-1 * var(--bleed));
+  width: calc(var(--bleed) + var(--page-x) - var(--mark-gap));
+  height: var(--band-h);
+  background: var(--ink);
+}
+
+.block--last { border-bottom: var(--rule); }
+
+/* ---- The section number ---------------------------------------------------
+   The number stands IN the band: paper ground, ink digits, set large enough to
+   read as a numeral rather than as a caption, and cutting a gap in the ink
+   rather than sitting on top of it.
+
+   Aligned on the GLYPHS, not the box. Measured by rendering "01" at 42px to a
+   4x canvas and scanning for ink:
+
+     left sidebearing   1.75px = 0.041667em  (ink starts right of the origin)
+     right sidebearing  3.57px = 0.085em
+     ink centre sits    4.63px = 0.1102em above the box centre, because
+                        lining figures have no descender
+
+   All three are stated in `em`, not px. Every one of them scales with the
+   type, and the numeral size drops in the phone block — as fixed
+   pixels the vertical correction left the numeral 6.5px off the band's centre
+   at 320 and 375. `em` resolves against the element's own font-size, so one
+   set of figures holds at every size the numeral is ever set in.
+
+   Horizontal: the ink's left edge lands on --page-x, the one margin the cover
+   headline, every section label and the footer all start from. The paper gap
+   then extends 16px past the ink on both sides.
+
+   Vertical: the box is shifted down 4.63px so the INK is centred on the band.
+   The box's own top and bottom edges are paper on paper, so only the gap it
+   cuts in the band is ever visible.
+
+   Both axes verified on the rendered page at 0.01px.
+
+   A CSS counter, so there is no markup and a tenth section numbers itself. */
+.block::after {
+  content: counter(section, decimal-leading-zero);
+  position: absolute;
+  top: calc(var(--band-h) / 2 + 0.1102em);
+  /* No paper ground and no padding. With the bar notched there is no ink
+     beneath the numeral to conceal, so the only horizontal correction left is
+     the left sidebearing — and the INK then lands exactly on --page-x, the one
+     margin the cover headline, every section label and the footer share. */
+  left: calc(var(--page-x) - 0.041667em);
+  transform: translateY(-50%);
+  z-index: 1;
+
+  color: var(--ink);
+  font-size: var(--mark-size);
+  font-weight: var(--w-display);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+/* Left padding is --page-x so the section labels align with the cover and the
+   footer. They previously hung 24px outboard of both, which read as a slip
+   rather than as a hang. */
+.block__label {
+  padding: var(--block-y) 32px var(--block-y) var(--page-x);
+}
+
+/* The whole group sticks as one unit and stays with you for the length of its
+   section, so you always know which block you are in. Sticking each child
+   separately pinned the Publications label and its Scholar link to the same
+   offset, printing one over the other. Position, not motion — nothing animates. */
+.block__label-inner {
+  position: sticky;
+  top: calc(var(--bar-h) + 28px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+/* align-items: flex-start sizes each child to its max-content width, so a long
+   single-word label grew past the column instead of wrapping inside it — the
+   break guard on .label could never fire. */
+.block__label-inner > * { max-width: 100%; }
+
+/* --page-x, not a second independent clamp. The two never coincided above
+   900px, so every row in the spine ended 5.6px right of where the nav and the
+   footer ended — on a page whose whole system is ruled alignment. */
+.block__body {
+  padding: var(--block-y) var(--page-x);
+  container: block-body / inline-size;
+}
+
+/* Rules go *between* rows, never at a section's edges — an edge rule would sit
+   a padding's distance from the section rule with nothing in between, which
+   reads as an empty container rather than as separation. Publications is the
+   one recorded exception (section 12, deviation 23): per 1A the list is CLOSED,
+   so its rows carry their own bottom rule instead. */
+.theme + .theme { border-top: var(--rule-soft); }
+
+
+/* ==========================================================================
+   9. Research
+   ========================================================================== */
+
+/* Three columns only where three columns genuinely fit (>=1280), and the
+   proportions are fr rather than a fixed cap: a 380px maximum on the
+   description took its full share before the title got anything, so the title
+   track ended up NARROWER than its own supporting paragraph. The title now
+   always holds the larger share, so the layout improves as the window widens
+   instead of degrading. minmax(0, …) on the fr track is load-bearing — an
+   unfloored fr sizes to the longest unbroken word. */
+/* Our philosophy: four paragraphs of prose in the PI's own voice. Reading
+   size, a comfortable measure, and paragraph spacing rather than rules — it
+   is the one section that is an essay rather than a list. */
+/* Set as a quotation: italic, inside curly quotes. The italic face is the
+   static 400 instance, which is exactly this weight; hanging-punctuation
+   pulls the opening quote into the margin where supported (Safari), and the
+   first-line indent does the same elsewhere, so the text edge stays true. */
+.philosophy {
+  max-width: 34em;
+  font-size: var(--t-lg);
+  font-style: italic;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.philosophy p:first-child { text-indent: -0.42em; }
+
+@supports (hanging-punctuation: first) {
+  .philosophy p:first-child { text-indent: 0; hanging-punctuation: first; }
+}
+
+.philosophy p + p { margin-top: 1em; }
+
+/* The statement is the PI's, so it is signed. Roman, not italic, at label
+   size: the quotation keeps the italic to itself and the signature reads as
+   a caption under it. */
+.philosophy__by {
+  margin-top: 1.5rem;
+  font-style: normal;
+}
+
+/* The section's opening statement: the same headline + body pair as Join and
+   Take part, closed off from the themes by one soft rule. */
+.research__intro {
+  padding-bottom: 40px;
+  margin-bottom: 40px;
+  border-bottom: var(--rule-soft);
+}
+
+.theme {
+  display: grid;
+  grid-template-columns: 5.25rem minmax(0, 1.45fr) minmax(13.75rem, 1fr);
+  gap: 44px;
+  align-items: start;
+  padding: 40px 0;
+}
+
+.theme:first-child { padding-top: 0; }
+.theme:last-child  { padding-bottom: 0; }
+
+.theme__num {
+  font-size: var(--d-head);
+  font-weight: var(--w-display);
+  line-height: 1.03;
+}
+
+.theme__title {
+  font-size: var(--d-head);
+  line-height: 1.03;
+  font-weight: var(--w-display);
+  letter-spacing: -0.022em;
+  text-wrap: pretty;
+}
+
+.theme__body {
+  font-size: var(--t-body);
+  line-height: 1.65;
+  max-width: 46ch;
+  color: var(--ink-soft);
+}
+
+
+/* ==========================================================================
+   10. How we work
+   ========================================================================== */
+
+/* Three items, so only 3 or 1 tracks avoid an orphan. The switch is a CONTAINER
+   query because what matters is the width of the body column, not of the
+   window: above 900 the spine's label column takes 340px off it, so the same
+   viewport gives very different room. Thresholded on measure (~33 characters),
+   not on fit. */
+/* Four practices, two by two. Three columns held three short paragraphs;
+   four paragraphs of ~50 words in three columns left one orphaned below and
+   ran each column to nine lines. Rows are implicit so any count works. */
+.values__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 48px 40px;
+  align-items: start;
+}
+
+@container block-body (max-width: 560px) {
+  .values__grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Subgrid, so titles in the same row share one track and their bodies the
+   next — they start level whether or not a title wraps. */
+.values__grid > * {
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  gap: 12px;
+}
+
+/* The fourth at-rest use of the accent (client's request, Sep 2026), after
+   the closing email and the two call-to-action boxes. #C81E48 is 5.62:1 on
+   paper, so it passes AA at this size. */
+.value__title {
+  color: var(--accent);
+  font-size: var(--t-xl);
+  font-weight: var(--w-text);
+  line-height: var(--lh-title);
+  max-width: 30ch;
+  text-wrap: pretty;
+}
+
+.value__text {
+  font-size: var(--t-body);
+  max-width: 46ch;
+  color: var(--ink-soft);
+}
+
+
+/* ==========================================================================
+   11. People
+   ========================================================================== */
+
+.pi {
+  display: grid;
+  grid-template-columns: minmax(240px, 380px) minmax(0, 1fr);
+  gap: 52px;
+  padding-bottom: 52px;
+  border-bottom: var(--rule-soft);
+}
+
+/* Stacks at 1250. Below that the photo track took its maximum before the bio
+   had a readable measure — a ~330px ribbon beside an empty frame, in the block
+   a prospective student reads first. */
+@media (max-width: 1250px) {
+  .pi {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+
+  .frame--pi { max-width: 380px; }
+}
+
+/* People photos are shown in colour, at the client's request (Sep 2026) —
+   they were greyscaled as part of the black-and-white system. They are the one
+   place colour beyond the accent appears on the page.
+
+   They are also shown UNCROPPED (client, Nov 2026): each photo keeps the frame
+   it was taken in, so the image sets its own height from its width and
+   height attributes. No object-fit, because nothing is being fitted. */
+.frame {
+  width: 100%;
+  height: auto;
+}
+
+/* Every member photo is the same size (client, Nov 2026), so the cards read as
+   one set: a 4:5 box, filled. The sources are 0.75–0.88 wide, so the fill
+   trims 4–5% off an edge — the photo keeps the frame it was taken in, which
+   is what "no cropping" meant; nothing is zoomed into a face. The PI's
+   portrait is outside the set and keeps its own proportions. */
+.frame--member {
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+}
+
+/* An empty slot matches the photographs it is standing in for. */
+.frame--empty.frame--pi { aspect-ratio: 4 / 5; }
+
+/* Keeps a member's portrait subordinate to the PI's 380px one, and stops it
+   growing with the 487px track it now sits in. */
+.frame--member { max-width: 320px; }
+
+/* Empty state. No photographs were supplied with the design, so every frame is
+   currently a visible slot. Replace the whole <div> with an <img> carrying the
+   same classes. */
+.frame--empty {
+  display: flex;
+  align-items: flex-end;
+  border: var(--rule-soft);
+  padding: 16px;
+}
+
+.pi__role { margin-bottom: 14px; }
+
+.pi__name {
+  font-size: var(--d-head);
+  font-weight: var(--w-display);
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  margin-bottom: 22px;
+}
+
+.pi__bio {
+  font-size: var(--t-lg);
+  max-width: 44ch;
+  text-wrap: pretty;
+}
+
+.pi__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin-top: 30px;
+}
+
+/* Two tracks — not auto-fit, and not four. Four fixed columns gave 219px
+   tracks and 23ch notes. auto-fit at minmax(260px) gave three, which leaves a
+   lone card beside 706px of dead space at 1440 and inverted the portrait
+   scaling across 1300, where photographs shrank 19% as the window WIDENED.
+   Two tracks are balanced for any even number of members, hold a 487px
+   measure at 1440, and keep the PI's portrait larger than a member's, which
+   the phone block treats as load-bearing. A container query decides when to
+   drop to one, because auto-fit cannot give two columns at both 640px and
+   1010px of body width: the minimum that forbids three at 1010 also forbids
+   two at 640. */
+.members {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: auto;
+  gap: 36px;
+  padding-top: 52px;
+}
+
+@container block-body (max-width: 560px) {
+  .members { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Subgrid so photo, name, role and note each share a row across the cards — a
+   two-line role otherwise pushed one card's note below its neighbours'.
+   row-gap: 0 because a subgrid with `normal` inherits the PARENT's 36px
+   gutter, which spaced name, role and note as far apart as they were from the
+   photograph and broke the lockup. The children carry their own margins.
+
+   The parent's rows are implicit: four fixed columns used to guarantee exactly
+   one row of cards, which is what made four explicit rows correct. The card
+   count is content, so that guarantee was never real. Implicit rows hold the
+   alignment for any number of members — verified at 2x2, 3+1 and 3+2, zero
+   misaligned parts in every row. */
+.member {
+  display: grid;
+  grid-row: span 5;
+  grid-template-rows: subgrid;
+  align-content: start;
+  row-gap: 0;
+}
+
+.member__name {
+  font-size: var(--t-xl);
+  font-weight: var(--w-text);
+  line-height: var(--lh-title);
+  margin-top: 18px;
+}
+
+.member__role { margin: 8px 0 10px; }
+
+/* Google Scholar and CV under every member, as under the PI. A link with no
+   URL yet renders muted and is out of the tab order (see the pending-link
+   rule at the end of this file). */
+.member__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-top: 14px;
+}
+
+.member__note {
+  font-size: var(--t-body);
+  max-width: 46ch;
+  color: var(--ink-soft);
+}
+
+
+/* ==========================================================================
+   12. Publications
+   ========================================================================== */
+
+/* Alternative 1A of the publications handoff, in the site's own type and
+   palette. The list has an EDGE: a 2px rule opens it and the last row closes
+   on its own hairline. Separators only between rows (the old treatment) left
+   the block floating — handoff problem 5. 2px, not the handoff's 1.5px: a
+   half pixel rounds to 1 or 2 depending on the display, so the "heavier" rule
+   was sometimes identical to the row rules beneath it. */
+.pubs__list { border-top: 2px solid var(--ink); }
+
+.pub {
+  display: grid;
+  grid-template-columns: 5.25rem minmax(0, 1fr);
+  gap: 32px;
+  align-items: baseline;
+  padding: 26px 0;
+  border-bottom: var(--rule-soft);
+}
+
+/* The year is the sort key, so the column should align digit for digit
+   (problem 8). The handoff reaches for mono to get that; it is unnecessary
+   here. Newsreader's DEFAULT figures are already tabular — every digit
+   advances 1100 units — and the subset carries no `tnum` feature, so declaring
+   tabular-nums would do nothing. Nothing to add; this note stops someone
+   importing a mono face to fix a problem the page does not have. */
+.pub__year { font-size: var(--t-label); }
+
+/* Title roman, venue italic — APA's order, and the reverse of what shipped
+   (problem 6). The italic lives in the markup's <em>, around the venue only.
+
+   The measure is 25em, NOT 52ch. `ch` is the advance of "0", and Newsreader's
+   lining zero is wide: 52ch computed to 693px at 24px and never bound, so rows
+   ran ~75 characters and venues orphaned onto a second line (problem 7). 25em
+   holds ~52 real characters, and em tracks --t-lg across breakpoints. */
+.pub__ref {
+  font-size: var(--t-lg);
+  line-height: 1.5;
+  max-width: 25em;
+  text-wrap: pretty;
+}
+
+/* The reference IS the link, to the paper's DOI — no separate Article / Data
+   column. Hover takes the accent only, NOT the bold every other link takes:
+   a bolder multi-line reference would rewrap and push the rows below it. */
+/* Lab authors are set bold inside a reference, the convention on a group's
+   own publication list. It is static weight, not hover weight, so nothing
+   rewraps; the roman face is variable 300-700, so 600 costs no extra file. */
+.pub__us { font-weight: var(--w-bold); }
+
+.pub__link { color: inherit; }
+.pub__link:hover { color: var(--accent); font-weight: inherit; }
+
+/* A news item that has a source behind it links to it, and behaves exactly
+   like a reference: the whole sentence is the target, the accent is the only
+   hover signal, and the weight stays put so nothing rewraps. */
+.news__link { color: inherit; }
+.news__link:hover { color: var(--accent); font-weight: inherit; }
+
+
+/* ==========================================================================
+   13. News
+   ========================================================================== */
+
+.news__list {
+  display: grid;
+  gap: 26px;
+}
+
+.news__item {
+  display: grid;
+  grid-template-columns: 6.25rem minmax(0, 1fr);
+  gap: 20px;
+  align-items: baseline;
+}
+
+.news__date {
+  font-size: var(--t-label);
+  color: var(--ink-muted);
+}
+
+.news__head {
+  font-size: var(--t-lg);
+  line-height: 1.5;
+  max-width: 46ch;
+  text-wrap: pretty;
+}
+
+
+
+/* ==========================================================================
+   14. Join + Participate — the page's two conversion targets
+   ========================================================================== */
+
+.cta__head {
+  font-size: var(--d-head);
+  line-height: 1.22;
+  font-weight: var(--w-display);
+  letter-spacing: -0.02em;
+  max-width: 30ch;
+  margin-bottom: 22px;
+  text-wrap: pretty;
+}
+
+.cta__body {
+  font-size: var(--t-body);
+  line-height: 1.7;
+  color: var(--ink-soft);
+  max-width: 52ch;
+}
+
+.cta__link {
+  display: inline-block;
+  margin-top: 32px;
+  font-size: var(--t-label);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 15px 22px;
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* The enclosure is already 53px tall, so it does not need the tap-target
+   bleed — and with a visible edge the bleed would light the border up while
+   the cursor is demonstrably outside it. */
+.cta__link::after { content: none; }
+
+
+/* ==========================================================================
+   15. Contact + footer
+
+   The closing line is the lab's email at display scale rather than a headline
+   restating the label above it. It is both the page's last visual beat and the
+   thing a reader actually came for.
+   ========================================================================== */
+
+/* The page's one genuine call to action and its last beat, so it is set at
+   display scale rather than listed as a detail — and it is one of the three
+   places the accent appears at rest (see the token block). Hover keeps the
+   colour and adds the weight. */
+.contact__email {
+  display: inline-block;
+  color: var(--accent);
+  font-size: var(--d-email);
+  font-weight: var(--w-display);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-bottom: 48px;
+}
+
+/* Hover is one step up, 300 → 400, not the 600 every other link takes. At
+   display size 600 read as too heavy (client, Sep 2026). The width ghost is
+   set to the same 400 so the hover still costs no reflow. */
+.contact__email:hover,
+.contact__email::before { font-weight: var(--w-text); }
+
+/* The address is split at the @ in the markup, and the two halves stack when
+   the column cannot hold the whole address at the HOVER weight. Without this,
+   at 375 the regular weight fitted on one line (327px in a 327px column) and
+   the bold did not (338px), so hovering wrapped it and pushed the page down
+   26px. 22rem clears the bold address at the phone size with room to spare.
+   Breaking at the @ also avoids the arbitrary break overflow-wrap would pick
+   ("cityu.e / du.hk"). */
+@container block-body (max-width: 22rem) {
+  .contact__email span { display: block; }
+}
+
+.contact__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 36px;
+  align-items: start;
+}
+
+/* Every other grid in the file collapses; this one was the exception. Two
+   ~135px columns at 320px could not hold "ELSEWHERE" at 0.22em tracking, which
+   forced it to break mid-word. */
+@container block-body (max-width: 460px) {
+  .contact__grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.contact__label { margin-bottom: 10px; }
+
+.contact__block {
+  font-size: var(--t-body);
+  line-height: 1.8;
+}
+
+/* One per line. As inline-block with no margin they sat 4px apart and read as
+   one phrase — three tap targets 4px apart on a phone. */
+.contact__block a {
+  display: block;
+  width: fit-content;
+  margin-bottom: 9px;
+}
+
+/* No border-top: .block--last already closes the spine, and the two together
+   drew the only 2px rule on the page, at the boundary a reader ends on. */
+.footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  padding: 22px var(--page-x) 30px;
+  font-size: var(--t-label);
+  line-height: var(--lh-label);
+  letter-spacing: var(--ls-footer);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* "Back to top" sits with the year at the right end of the footer. Black, not
+   muted like the rest of the footer: it is the one live link there. It jumps
+   to #top — smooth where motion is allowed, per the rule in section 3. */
+.footer__end {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+}
+
+.footer__top { color: var(--ink); }
+
+
+/* ==========================================================================
+   16. Tablet
+   ========================================================================== */
+
+/* The nav stops fitting beside the brand at ~1230px (since the first item
+   became "What we study", Sep 2026; it was ~1170px with "Research") — but
+   what makes it stop fitting is TYPE size, not device size, so this query is
+   in rem. At a reader's default it resolves to 1248px, ~18px of slack over
+   what the bar needs — CHECK IT AGAIN whenever a nav label changes; at 200%
+   text it resolves to 2496px,
+   so the compact bar is used at any realistic viewport — which is right,
+   because at that size the nav genuinely does not fit. A px query could not
+   see that: the bar wrapped to two rows while --bar-h still asserted one, and
+   the sticky section labels were sliced in half by it.
+
+   A pinned bar is also a permanent tax on the viewport, and a wrapped one
+   doubles it. So the wrapper dissolves: the brand pins alone, and the nav sits
+   beneath it in normal flow and scrolls away. One row or no row, never two. */
+@media (max-width: 78rem) {
+
+  :root { --bar-h: 4.1875rem; }
+
+  .topbar { display: contents; }
+
+  .masthead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    padding: 0.625rem var(--page-x);
+    background: var(--paper);
+    border-bottom: var(--rule);
+    font-size: var(--t-label);
+    line-height: var(--lh-label);
+    letter-spacing: var(--ls-nav);
+    text-transform: uppercase;
+  }
+
+  .masthead__nav {
+    padding: 14px var(--page-x);
+    border-bottom: var(--rule);
+    gap: 4px 18px;
+    font-size: var(--t-label);
+    line-height: var(--lh-label);
+    letter-spacing: var(--ls-nav);
+    text-transform: uppercase;
+  }
+}
+
+/* Research rows go two-column: number and title on the top row, description
+   spanning beneath, so the title always has the full body width. Above 1280
+   the third column has room. */
+@media (max-width: 1279px) {
+  .theme { grid-template-columns: 5.25rem minmax(0, 1fr); }
+  .theme__body { grid-column: 2; }
+
+}
+
+/* Below 900 the spine goes single-column: a 340px label column leaves too
+   little beside it, and the label reads better above its content than beside
+   it at that width. The cover is governed separately, at 650 — section 16b. */
+@media (max-width: 900px) {
+
+  .block { grid-template-columns: minmax(0, 1fr); }
+
+  /* Stacked, the label's rule turns from its right edge to its bottom. */
+  .block__label {
+    padding: 26px var(--page-x);
+    border-right: 0;
+    border-bottom: var(--rule-soft);
+    background: none;
+  }
+
+  /* The flex container is the inner group, not the label cell. */
+  .block__label-inner {
+    position: static;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    width: 100%;
+  }
+
+  .block__body { padding: 36px var(--page-x); }
+}
+
+
+/* ==========================================================================
+   16b. The cover stacks — 650px and below
+
+   Not 600, and not 900. This is the cover's own breakpoint, and separating it
+   from the spine's is what let the problem be solved rather than moved: two
+   earlier rounds tried to fix the cover by changing the type size while the
+   breakpoint stayed tied to the spine.
+
+   Two constraints set it. Widening the window must not make the headline
+   smaller — at a 601 floor the two-column H1 was 59.5px against 66.6px at
+   375, so the site's one display element was smaller on a small tablet than
+   on a phone. And the stacked band has to stay narrow enough that the
+   headline keeps three lines, or the fixed-width mark below it ends up taller
+   than the message. 650 satisfies both: the seam is 72px stacked against 65px
+   two-column, and logo/headline height runs 1.29 at the top of the stacked
+   band against 1.02 at the bottom of the two-column one.
+
+   The logo is pushed to the right margin here, not left under the headline.
+   Stacked, a fixed-width mark flush left leaves half the row empty beside it;
+   against the right edge it keeps the cover's own composition — headline
+   left, mark right — and the empty space falls under the headline where it
+   reads as air rather than as a gap.
+   ========================================================================== */
+@media (max-width: 650px) {
+
+  :root {
+    --d-hero: min(20.5cqi, 4.5rem);
+    --mark-size: 2.25rem;   /* 36px */
+  }
+
+  /* The numerals' ink widths at 36px — see "Per-numeral ink width". */
+  .block:nth-of-type(1) { --mark-ink: 0.9237; }
+  .block:nth-of-type(2) { --mark-ink: 0.9945; }
+  .block:nth-of-type(3) { --mark-ink: 0.9913; }
+  .block:nth-of-type(4) { --mark-ink: 0.9664; }
+  .block:nth-of-type(5) { --mark-ink: 0.9549; }
+  .block:nth-of-type(6) { --mark-ink: 0.9836; }
+  .block:nth-of-type(7) { --mark-ink: 0.9640; }
+  .block:nth-of-type(8) { --mark-ink: 1.0240; }
+  .block:nth-of-type(9) { --mark-ink: 1.0052; }
+  .block:nth-of-type(10) { --mark-ink: 1.1804; }
+
+  /* Stacked: headline, logo, then the lead. */
+  .hero__top {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas: "head" "logo" "lead";
+    row-gap: 28px;
+  }
+
+  .hero__logo {
+    max-width: 260px;
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .hero__logo { max-width: 240px; }
+}
+
+
+/* ==========================================================================
+   17. Phone — 600px and below
+
+   The handoff is undefined below ~600px; this is the missing design. Three
+   rules govern it:
+
+   1. Multi-column rows collapse to one column. Because dividers are grid gaps
+      over an ink background, vertical rules become horizontal ones by
+      themselves — the ledger structure survives the stack intact.
+   2. Hanging numerals stay hanging. The 01/02/03 and the publication year keep
+      their own narrow column rather than becoming another stacked line; that
+      hang is the identity of those sections and it holds to 360px.
+   3. Type drops exactly one step, by redefining the scale in one place. The
+      hero is the exception and is not in this block at all: it sizes in cqi
+      and has its own breakpoint at 650 (section 16b), where the seam is 72px
+      against 65px. Nothing jumps at 600.
+   ========================================================================== */
+
+@media (max-width: 600px) {
+
+  :root {
+    --t-body: 1.125rem;
+    --t-lg:   1.25rem;
+    --t-xl:   1.5rem;
+    --d-head: 1.75rem;   /* 28px, still above --t-xl here (24px) */
+    --d-email: 1.5rem;   /* 24px: the full address fits a 382px column */
+
+    --block-y: 36px;
+
+
+  /* The cover stacks here and nowhere above. Below 600 the headline column in
+     a two-column cover falls under ~290px, where the longest word sits on the
+     wrap boundary; stacked, the headline gets the full width instead.
+
+     Stacking hands the headline the whole column, so the cqi clamp would run
+     to 113px at 600 against the 59px the two-column layout produces at 601.
+     The cap closes that: 72px against 59px is a step, not a cliff, and 72px
+     is still the largest type on a phone by a factor of three. */
+  }
+
+  /* H3: inline-block sized the two boxes to their two different strings, so
+     they terminated 24px apart against the same right margin — and at 320 the
+     longer one filled the column exactly and broke to a one-word widow. Full
+     width is the honest answer on a phone: both actions get the same edge, and
+     text-wrap: balance keeps the two lines even when the string needs two. */
+  .cta__link {
+    display: block;
+    padding: 16px 18px;
+  }
+
+  .theme {
+    grid-template-columns: 3rem minmax(0, 1fr);
+    gap: 16px 20px;
+    padding: 34px 0;
+  }
+
+  .block__body { padding: var(--block-y) var(--page-x); }
+
+  .values__grid { gap: 32px; }
+
+  .pub {
+    grid-template-columns: 3.25rem minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .pi { padding-bottom: 44px; }
+
+  .members {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 44px;
+    padding-top: 44px;
+  }
+
+  /* Same width cap as the PI frame — without it a member portrait rendered
+     45% larger than the principal investigator's. */
+  .frame--member { max-width: 380px; }
+
+  /* News dates stop hanging — 100px is too much of a 320px line. */
+  .news__item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .contact__email { margin-bottom: 36px; }
+
+  .footer { gap: 6px; }
+}
+
+
+/* ==========================================================================
+   18. Narrow — 359px and below
+   The hanging columns hold down to 360px, which covers every current phone.
+   Below that the title column gets too tight and the numerals give up.
+   ========================================================================== */
+
+@media (max-width: 359px) {
+  .theme { grid-template-columns: minmax(0, 1fr); }
+  .theme__body { grid-column: 1; }
+  .pub { grid-template-columns: minmax(0, 1fr); }
+}
+
+
+/* ==========================================================================
+   19. Pending state
+
+   A link with no href is a destination the lab still owes. It keeps its slot
+   in the design so the layout stays true, but it renders inert and muted so it
+   reads as pending rather than inviting a click that goes nowhere.
+
+   `a:not([href])` and `.contact__block a` have identical specificity (0,1,1),
+   so this must come LAST in the file to win — which is why it lives here at
+   the end rather than up in the utilities. (A cascade layer would do the
+   opposite: unlayered rules beat layered ones.) When the real URLs land the
+   muting stops applying by itself.
+   ========================================================================== */
+
+a:not([href]) {
+  color: var(--ink-muted);
+  border-bottom-color: var(--ink-muted);
+  cursor: default;
+}
+
+a:not([href]):hover {
+  color: var(--ink-muted);
+  font-weight: var(--w-text);
+  text-decoration: none;
+}
+
+
+/* ==========================================================================
+   20. Print
+   ========================================================================== */
+
+@media print {
+  .masthead__nav, .skip-link { display: none; }
+  .theme, .member, .pub, .news__item { break-inside: avoid; }
+  .page { border: 0; max-width: none; }
+}

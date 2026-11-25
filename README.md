@@ -3,7 +3,7 @@
 The website of the Curious Minds Lab, Department of Linguistics and
 Translation, City University of Hong Kong.
 
-Live at **https://adelchaouchorozco.github.io/lab/**
+Live at **https://adelchaouchorozco.github.io/curiousmindslab/**
 
 We study how language, experience and culture shape the way we think, feel
 and understand the world — combining behavioural experiments with
